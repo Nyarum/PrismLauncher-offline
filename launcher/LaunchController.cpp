@@ -95,8 +95,8 @@ void LaunchController::decideAccount()
     if (!accounts->anyAccountIsValid()) {
         // Tell the user they need to log in at least one account in order to play.
         auto reply = CustomMessageBox::selectable(m_parentWidget, tr("No Accounts"),
-                                                  tr("In order to play Minecraft, you must have at least one Microsoft "
-                                                     "account which owns Minecraft logged in. "
+                                                  tr("In order to play Minecraft, add an offline account or a Microsoft "
+                                                     "account which owns Minecraft. "
                                                      "Would you like to open the account manager to add an account now?"),
                                                   QMessageBox::Information, QMessageBox::Yes | QMessageBox::No)
                          ->exec();
@@ -134,21 +134,13 @@ LaunchDecision LaunchController::decideLaunchMode()
         return LaunchDecision::Continue;
     }
 
-    const auto* accounts = APPLICATION->accounts();
-    MinecraftAccountPtr accountToCheck = nullptr;
-
-    if (m_accountToUse->accountType() != AccountType::Offline) {
-        accountToCheck = m_accountToUse->ownsMinecraft() ? m_accountToUse : nullptr;
-    } else if (const auto defaultAccount = accounts->defaultAccount(); defaultAccount && defaultAccount->ownsMinecraft()) {
-        accountToCheck = defaultAccount;
-    } else {
-        for (int i = 0; i < accounts->count(); i++) {
-            if (const auto account = accounts->at(i); account->ownsMinecraft()) {
-                accountToCheck = account;
-                break;
-            }
-        }
+    // Offline profiles do not depend on a Microsoft account or token refresh.
+    if (m_accountToUse->accountType() == AccountType::Offline) {
+        m_actualLaunchMode = LaunchMode::Offline;
+        return LaunchDecision::Continue;
     }
+
+    MinecraftAccountPtr accountToCheck = m_accountToUse->ownsMinecraft() ? m_accountToUse : nullptr;
 
     if (!accountToCheck) {
         m_actualLaunchMode = LaunchMode::Demo;

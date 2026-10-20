@@ -1,3 +1,23 @@
+# PrismLauncher Offline
+
+Based on upstream PrismLauncher **11.1.1**. This unofficial fork supports adding
+and launching offline profiles without a Microsoft account. Online authentication
+keeps upstream error handling; authentication failures are not treated as success.
+
+Offline play requires legally obtained game files. Initial downloads and missing
+assets require internet access. Authenticated servers require an online account.
+
+Automatic launcher updates from upstream are disabled to preserve offline support.
+
+Local macOS build: Apple Silicon (arm64), macOS 26 or newer. The ZIP is in
+`build/artifacts/PrismLauncher-offline-11.1.1-macOS26-arm64.zip`. It is ad-hoc
+signed, not Apple-notarized. The 21 upstream tests pass; a full Minecraft launch
+has not been tested. Windows binaries have not yet been built.
+
+The original fork is preserved in the local `backup/offline-original` branch.
+
+---
+
 <p align="center">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="/program_info/org.prismlauncher.PrismLauncher.logo-darkmode.svg">

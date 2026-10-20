@@ -1,0 +1,94 @@
+name: Offline Windows x64
+
+on:
+  push:
+    branches: [offline-11.1.1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: git
+          pacboy: >-
+            toolchain:p cmake:p extra-cmake-modules:p ninja:p
+            qt6-base:p qt6-svg:p qt6-imageformats:p qt6-networkauth:p
+            cmark:p qrencode:p tomlplusplus:p libarchive:p
+      - name: Configure offline Release
+        run: |
+          export JAVA_HOME="$(cygpath -u "$JAVA_HOME")"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/install" \
+            -DLauncher_BUILD_PLATFORM=offline \
+            -DLauncher_UPDATER_GITHUB_REPO= \
+            -DLauncher_ENABLE_JAVA_DOWNLOADER=ON
+      - name: Compile
+        run: cmake --build build --parallel 4
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure --parallel 4
+      - name: Package portable application
+        run: |
+          cmake --install build
+          cmake --install build --component portable
+          test -f install/prismlauncher.exe
+          test -f install/portable.txt
+      - name: Verify packaged executable
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SystemRoot\system32;$env:SystemRoot"
+          $exe = Join-Path $pwd 'install/prismlauncher.exe'
+          $process = Start-Process -FilePath $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput version.txt -RedirectStandardError version-errors.txt
+          Get-Content version.txt
+          Get-Content version-errors.txt
+          if ($process.ExitCode -ne 0) { throw "Packaged executable failed: $($process.ExitCode)" }
+          if (-not (Select-String -Path version.txt -Pattern 'PrismLauncher 11.1.1' -SimpleMatch -Quiet)) { throw 'Unexpected version' }
+      - name: Archive and checksum
+        shell: pwsh
+        run: |
+          Compress-Archive -Path install/* -DestinationPath PrismLauncher-offline-11.1.1-Windows-x64.zip
+          $hash = (Get-FileHash PrismLauncher-offline-11.1.1-Windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  PrismLauncher-offline-11.1.1-Windows-x64.zip" | Set-Content SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PrismLauncher-offline-11.1.1-Windows-x64
+          path: |
+            PrismLauncher-offline-11.1.1-Windows-x64.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-build-diagnostics
+          path: |
+            build/Testing/Temporary/*.log
+            build/CMakeCache.txt
+            version*.txt
+          retention-days: 14
